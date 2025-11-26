@@ -1,0 +1,5 @@
+{
+  "name": "PHOBBQ - Task Manager",
+  "description": "A mobile-first task management system for BBQ restaurant staff and managers. Features role-based access, checklist tracking, and statistical dashboards.",
+  "requestFramePermissions": []
+}
