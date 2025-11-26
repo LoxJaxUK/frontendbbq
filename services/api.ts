@@ -2,7 +2,7 @@ import { LoginResponse, Task, Stats, User, Department, Shift, Log } from '../typ
 
 // In a real Vercel deploy, this is usually relative '/api'
 // For this demo structure, we assume the backend runs on port 5000 locally or via a proxy
-const API_URL = 'http://localhost:5000/api';
+const API_URL = 'https://backendphobbq.onrender.com/api';
 
 const getHeaders = () => {
   const token = localStorage.getItem('phobbq_token');
