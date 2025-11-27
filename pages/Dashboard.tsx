@@ -1,173 +1,118 @@
 import React, { useEffect, useState } from 'react';
+import { useAuth } from '../App';
 import { getStats, getLogs } from '../services/api';
 import { Stats, Log } from '../types';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { ClipboardList, CheckCircle, TrendingUp, Download, History } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ClipboardList, CheckCircle, AlertTriangle, Download, History } from 'lucide-react';
 
 const Dashboard = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [logs, setLogs] = useState<Log[]>([]);
-  const [loading, setLoading] = useState(true);
-
+  
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [statsData, logsData] = await Promise.all([getStats(), getLogs()]);
-        setStats(statsData);
-        setLogs(logsData);
-      } catch (error) {
-        console.error("Fetch stats error", error);
-      } finally {
-        setLoading(false);
-      }
+    const load = async () => {
+       const [s, l] = await Promise.all([getStats(), getLogs()]);
+       setStats(s);
+       setLogs(l);
     };
-
-    fetchData();
-    const interval = setInterval(fetchData, 10000); // 10s polling
-    return () => clearInterval(interval);
+    load();
   }, []);
 
-  const handleExportCSV = () => {
-    if (!logs.length) return;
-    
-    // Header
-    let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Timestamp,User,Task,Action\n";
-    
-    // Rows
-    logs.forEach(log => {
-      const row = `${new Date(log.timestamp).toLocaleString()},${log.userName},"${log.taskTitle}",${log.action}`;
-      csvContent += row + "\n";
-    });
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `phobbq_report_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleExport = () => {
+      // CSV Export logic
+      if (!logs.length) return;
+      let csv = "Time,User,Task,Action\n";
+      logs.forEach(l => csv += `${l.timestamp},${l.userName},"${l.taskTitle}",${l.action}\n`);
+      const link = document.createElement("a");
+      link.href = "data:text/csv;charset=utf-8," + encodeURI(csv);
+      link.download = "baocao.csv";
+      link.click();
   };
 
-  if (loading || !stats) {
-    return (
-        <div className="flex items-center justify-center min-h-[50vh]">
-            <div className="animate-pulse text-gray-500">Đang tải dữ liệu...</div>
-        </div>
-    );
-  }
+  if (!stats) return <div className="p-10 text-center">Đang tải báo cáo...</div>;
 
   return (
-    <div className="space-y-6 pb-20">
-      <div className="flex justify-between items-end mb-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Dashboard</h1>
-          <p className="text-gray-500 text-sm">Tổng quan hoạt động</p>
-        </div>
-        <button 
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 bg-white border border-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm"
-        >
-          <Download size={16} />
-          Xuất CSV
-        </button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+         <h2 className="text-2xl font-bold text-gray-800">Hiệu Suất Hoạt Động</h2>
+         {user?.role === 'admin' && (
+             <button onClick={handleExport} className="flex items-center gap-2 text-sm bg-white border px-3 py-2 rounded-lg shadow-sm">
+                 <Download size={16}/> Xuất Báo Cáo
+             </button>
+         )}
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-3 gap-3 md:gap-6">
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-          <div className="bg-blue-50 p-2 rounded-full mb-2">
-            <ClipboardList className="text-blue-600" size={20} />
-          </div>
-          <span className="text-2xl font-bold text-gray-800">{stats.totalTasks}</span>
-          <span className="text-[10px] md:text-xs text-gray-500">Tổng công việc</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-          <div className="bg-green-50 p-2 rounded-full mb-2">
-            <CheckCircle className="text-green-600" size={20} />
-          </div>
-          <span className="text-2xl font-bold text-gray-800">{stats.completedTasks}</span>
-          <span className="text-[10px] md:text-xs text-gray-500">Đã xong</span>
-        </div>
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col items-center justify-center text-center">
-          <div className="bg-orange-50 p-2 rounded-full mb-2">
-            <TrendingUp className="text-orange-600" size={20} />
-          </div>
-          <span className="text-2xl font-bold text-gray-800">{stats.completionRate}%</span>
-          <span className="text-[10px] md:text-xs text-gray-500">Tiến độ</span>
-        </div>
-      </div>
-
-      {/* Charts Grid */}
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Chart: Completion by User */}
-        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-700 mb-4 text-sm">Top Nhân Viên (Việc đã làm)</h3>
-          <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.byUser} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#f0f0f0" />
-                <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={70} tick={{fontSize: 11}} />
-                <Tooltip cursor={{fill: 'transparent'}} contentStyle={{ borderRadius: '8px' }} />
-                <Bar dataKey="count" fill="#ea580c" radius={[0, 4, 4, 0]} barSize={15}>
-                  {stats.byUser.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#ea580c' : '#f97316'} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-         {/* Chart: Hourly Activity */}
-         <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
-          <h3 className="font-semibold text-gray-700 mb-4 text-sm">Mật độ hoạt động (giờ)</h3>
-          <div className="h-48 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={stats.byHour}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                <XAxis dataKey="hour" tick={{fontSize: 10}} axisLine={false} tickLine={false} />
-                <YAxis hide />
-                <Tooltip contentStyle={{ borderRadius: '8px' }} />
-                <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* Audit Logs */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-         <div className="p-4 border-b border-gray-100 flex items-center gap-2">
-             <History size={18} className="text-gray-500"/>
-             <h3 className="font-semibold text-gray-700">Nhật ký hoạt động</h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+             <div className="text-gray-500 text-xs uppercase font-bold mb-1">Tổng Việc</div>
+             <div className="text-2xl font-bold">{stats.totalTasks}</div>
          </div>
-         <div className="max-h-60 overflow-y-auto">
-             <table className="w-full text-sm text-left text-gray-500">
-                 <thead className="text-xs text-gray-700 uppercase bg-gray-50 sticky top-0">
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+             <div className="text-green-600 text-xs uppercase font-bold mb-1">Hoàn Thành</div>
+             <div className="text-2xl font-bold text-green-600">{stats.completedTasks}</div>
+         </div>
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+             <div className="text-red-500 text-xs uppercase font-bold mb-1">Trễ Hạn</div>
+             <div className="text-2xl font-bold text-red-500">{stats.lateTasks}</div>
+         </div>
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+             <div className="text-blue-500 text-xs uppercase font-bold mb-1">Tỉ Lệ</div>
+             <div className="text-2xl font-bold text-blue-500">{stats.completionRate}%</div>
+         </div>
+      </div>
+
+      {/* Charts */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h3 className="font-bold text-gray-700 mb-6">Top Nhân Viên Xuất Sắc</h3>
+          <div className="h-64">
+             <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={stats.byUser} layout="vertical" margin={{left: 0}}>
+                   <XAxis type="number" hide />
+                   <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 12}} />
+                   <Tooltip />
+                   <Bar dataKey="count" fill="#ea580c" radius={[0, 4, 4, 0]} barSize={20} />
+                </BarChart>
+             </ResponsiveContainer>
+          </div>
+      </div>
+
+      {/* Recent Activity Log */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="p-4 border-b border-gray-100 bg-gray-50 font-bold text-gray-700 flex items-center gap-2">
+              <History size={18}/> Nhật Ký Gần Đây
+          </div>
+          <div className="max-h-80 overflow-y-auto">
+             <table className="w-full text-sm">
+                 <thead className="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0">
                      <tr>
-                         <th className="px-4 py-3">Thời gian</th>
-                         <th className="px-4 py-3">Nhân viên</th>
-                         <th className="px-4 py-3">Hành động</th>
+                         <th className="px-4 py-3 text-left">Thời gian</th>
+                         <th className="px-4 py-3 text-left">Nhân viên</th>
+                         <th className="px-4 py-3 text-left">Hành động</th>
                      </tr>
                  </thead>
-                 <tbody>
+                 <tbody className="divide-y divide-gray-100">
                      {logs.map(log => (
-                         <tr key={log.id} className="border-b hover:bg-gray-50">
-                             <td className="px-4 py-2 font-medium">{new Date(log.timestamp).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}</td>
-                             <td className="px-4 py-2">{log.userName}</td>
+                         <tr key={log.id} className="hover:bg-gray-50">
+                             <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
+                                 {new Date(log.timestamp).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'})}
+                             </td>
+                             <td className="px-4 py-2 font-medium">{log.userName}</td>
                              <td className="px-4 py-2">
-                                 <span className={log.action === 'complete' ? 'text-green-600' : 'text-red-500'}>
-                                     {log.action === 'complete' ? 'Đã xong: ' : 'Hoàn tác: '} 
-                                 </span>
-                                 <span className="text-gray-800">{log.taskTitle}</span>
+                                 {log.action === 'upload_image' ? (
+                                     <span className="text-blue-600 flex items-center gap-1"><CheckCircle size={14}/> Gửi ảnh báo cáo</span>
+                                 ) : log.action === 'complete' ? (
+                                     <span className="text-green-600">Hoàn thành: {log.taskTitle}</span>
+                                 ) : (
+                                     <span className="text-gray-500">Hoàn tác: {log.taskTitle}</span>
+                                 )}
                              </td>
                          </tr>
                      ))}
                  </tbody>
              </table>
-         </div>
+          </div>
       </div>
     </div>
   );

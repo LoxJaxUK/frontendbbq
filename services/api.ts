@@ -1,8 +1,6 @@
-import { LoginResponse, Task, Stats, User, Department, Shift, Log } from '../types';
+import { LoginResponse, Task, Stats, Log, Rule, TrainingVideo, Role } from '../types';
 
-// In a real Vercel deploy, this is usually relative '/api'
-// For this demo structure, we assume the backend runs on port 5000 locally or via a proxy
-const API_URL = 'https://backendphobbq.onrender.com/api';
+const API_URL = '/api'; // Relative path for Vite proxy
 
 const getHeaders = () => {
   const token = localStorage.getItem('phobbq_token');
@@ -14,41 +12,34 @@ const getHeaders = () => {
 
 const handleResponse = async (res: Response) => {
   const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.message || 'Có lỗi xảy ra');
-  }
+  if (!res.ok) throw new Error(data.message || 'Lỗi kết nối');
   return data;
 };
 
 // --- AUTH ---
 export const apiLogin = async (email: string, password: string): Promise<LoginResponse> => {
-  try {
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
-    return handleResponse(res);
-  } catch (error: any) {
-    if (error.message === 'Failed to fetch') {
-      throw new Error('Không thể kết nối Server. Hãy kiểm tra xem Backend (Port 5000) đã chạy chưa?');
-    }
-    throw error;
-  }
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  return handleResponse(res);
 };
 
+export const seedData = async () => handleResponse(await fetch(`${API_URL}/seed`, { method: 'POST' }));
+
 // --- TASKS ---
-export const getTasks = async (department?: string): Promise<Task[]> => {
-  const query = department ? `?department=${department}` : '';
+export const getTasks = async (role?: string): Promise<Task[]> => {
+  const query = role ? `?role=${role}` : '';
   const res = await fetch(`${API_URL}/tasks${query}`, { headers: getHeaders() });
   return handleResponse(res);
 };
 
-export const toggleTask = async (taskId: string, isCompleted: boolean): Promise<Task> => {
+export const toggleTask = async (taskId: string, isCompleted: boolean, image?: string): Promise<Task> => {
   const res = await fetch(`${API_URL}/tasks/${taskId}/toggle`, {
     method: 'POST',
     headers: getHeaders(),
-    body: JSON.stringify({ isCompleted }),
+    body: JSON.stringify({ isCompleted, image }),
   });
   return handleResponse(res);
 };
@@ -64,8 +55,50 @@ export const getLogs = async (): Promise<Log[]> => {
   return handleResponse(res);
 };
 
-// --- ADMIN SEEDING (Helper) ---
-export const seedData = async () => {
-    const res = await fetch(`${API_URL}/seed`, { method: 'POST' });
+// --- RULES ---
+export const getRules = async (): Promise<Rule[]> => {
+  const res = await fetch(`${API_URL}/rules`, { headers: getHeaders() });
+  return handleResponse(res);
+};
+
+export const updateRule = async (title: string, content: string): Promise<Rule> => {
+  const res = await fetch(`${API_URL}/rules`, {
+    method: 'PUT',
+    headers: getHeaders(),
+    body: JSON.stringify({ title, content })
+  });
+  return handleResponse(res);
+};
+
+// --- VIDEOS ---
+export const getVideos = async (): Promise<TrainingVideo[]> => {
+  const res = await fetch(`${API_URL}/videos`, { headers: getHeaders() });
+  return handleResponse(res);
+};
+
+export const addVideo = async (video: Partial<TrainingVideo>): Promise<TrainingVideo> => {
+  const res = await fetch(`${API_URL}/videos`, {
+    method: 'POST',
+    headers: getHeaders(),
+    body: JSON.stringify(video)
+  });
+  return handleResponse(res);
+};
+
+export const deleteVideo = async (id: string): Promise<void> => {
+  const res = await fetch(`${API_URL}/videos/${id}`, {
+    method: 'DELETE',
+    headers: getHeaders()
+  });
+  return handleResponse(res);
+};
+
+// --- ADMIN ---
+export const importTasks = async (tasks: Partial<Task>[]) => {
+    const res = await fetch(`${API_URL}/tasks/import`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ tasks })
+    });
     return handleResponse(res);
 };

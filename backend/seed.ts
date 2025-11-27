@@ -1,91 +1,64 @@
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
-import { User, Task, Log } from "./models";
-import { InferSchemaType } from "mongoose";
+import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
+import { User, Task, Log, Rule, Video } from './models';
 
-// Kiểu từ schema
-type UserType = InferSchemaType<typeof User.schema>;
-type TaskType = InferSchemaType<typeof Task.schema>;
-type LogType = InferSchemaType<typeof Log.schema>;
-
-// Dữ liệu mẫu
-const KITCHEN_TASKS: Omit<TaskType, "_id" | "isCompleted" | "completedBy" | "completedAt" | "createdAt" | "updatedAt">[] = [
-  { title: "Kiểm tra nhiệt độ tủ đông/mát", description: "Đảm bảo tủ mát < 5 độ, tủ đông < -18 độ. Ghi vào sổ theo dõi.", department: "Bep", shift: "sang" },
-  { title: "Kiểm tra hệ thống Gas & Hút khói", description: "Bật quạt hút, kiểm tra van gas trung tâm.", department: "Bep", shift: "sang" },
-  { title: "Rã đông thịt bò Mỹ (Ca sáng)", description: "Chuyển thịt từ đông sang mát cho ca tối.", department: "Bep", shift: "sang" },
-  { title: "Chuẩn bị sốt ướp BBQ", description: "Pha 5 lít sốt ướp tiêu chuẩn, dán nhãn ngày tháng.", department: "Bep", shift: "sang" },
+const KITCHEN_TASKS = [
+  { title: "Kiểm tra nhiệt độ tủ đông/mát", deadline: "09:00", description: "Đảm bảo tủ mát < 5 độ, tủ đông < -18 độ." },
+  { title: "Nhập nguyên liệu tươi sống", deadline: "10:00", description: "Kiểm tra chất lượng thịt bò, hải sản." },
+  { title: "Sơ chế thịt bò Ba chỉ", deadline: "11:00", description: "Cắt máy 3mm, xếp khay 200g." },
+  { title: "Vệ sinh khu vực bếp nướng", deadline: "14:00", description: "Chà vỉ nướng, dọn than cũ." },
+  { title: "Chuẩn bị sốt chấm BBQ", deadline: "16:00", description: "Pha 5 lít sốt theo công thức chuẩn." },
 ];
 
-const SERVICE_TASKS: Omit<TaskType, "_id" | "isCompleted" | "completedBy" | "completedAt" | "createdAt" | "updatedAt">[] = [
-  { title: "Vệ sinh mặt bàn & Ghế", description: "Dùng cồn lau sạch dầu mỡ trên bàn và ghế da.", department: "PhucVu", shift: "sang" },
-  { title: "Setup bàn ăn tiêu chuẩn", description: "4 bát, 4 đũa, 1 kẹp nướng, 1 kéo, khăn giấy.", department: "PhucVu", shift: "sang" },
+const SERVICE_TASKS = [
+  { title: "Lau dọn bàn ghế, sàn nhà", deadline: "09:30", description: "Dùng cồn lau mặt bàn, hút bụi sàn." },
+  { title: "Kiểm tra máy POS, iPad", deadline: "10:00", description: "Đảm bảo pin > 90%, log in hệ thống." },
+  { title: "Setup dụng cụ ăn uống", deadline: "10:30", description: "Đũa, thìa, kẹp nướng tại các bàn." },
+  { title: "Kiểm tra nhà vệ sinh", deadline: "11:00", description: "Giấy, nước rửa tay, mùi hương." },
+  { title: "Họp đầu ca", deadline: "17:00", description: "Nghe phổ biến món mới/CTKM." },
 ];
 
-// Hàm seed
 export const seedDatabase = async () => {
-  // Xóa dữ liệu cũ
+  // Clear existing
   await User.deleteMany({});
   await Task.deleteMany({});
   await Log.deleteMany({});
+  await Rule.deleteMany({});
+  await Video.deleteMany({});
 
-  // Hash password mặc định
-  const passwordHash = await bcrypt.hash("123456", 10);
+  // Users
+  const passwordHash = await bcrypt.hash('123456', 10);
+  
+  await User.insertMany([
+    { name: "Admin Tổng", email: "admin@phobbq.com", passwordHash, role: "admin", jobPosition: "Chủ Quán" },
+    { name: "Quản Lý Cửa Hàng", email: "manager@phobbq.com", passwordHash, role: "manager", jobPosition: "Quản Lý" },
+    { name: "Đầu Bếp Hùng", email: "kitchen@phobbq.com", passwordHash, role: "kitchen", jobPosition: "Bếp Trưởng" },
+    { name: "Phục Vụ Mai", email: "service@phobbq.com", passwordHash, role: "service", jobPosition: "Tổ trưởng bàn" },
+  ]);
 
-  // Tạo users
-  const users: Omit<UserType, "_id" | "createdAt" | "updatedAt">[] = [
-    { name: "Quản Lý Tuấn", email: "admin@phobbq.com", passwordHash, role: "manager" },
-    { name: "Bếp Trưởng Nam", email: "bep1@phobbq.com", passwordHash, role: "staff", department: "Bep" },
-    { name: "Phụ Bếp Lan", email: "bep2@phobbq.com", passwordHash, role: "staff", department: "Bep" },
-    { name: "Tổ Trưởng Phục Vụ", email: "phucvu1@phobbq.com", passwordHash, role: "staff", department: "PhucVu" },
-    { name: "Nhân Viên Chạy Bàn", email: "phucvu2@phobbq.com", passwordHash, role: "staff", department: "PhucVu" },
-  ];
+  console.log("Users seeded (Admin, Manager, Kitchen, Service)");
 
-  await User.insertMany(users);
-  console.log("Users seeded:", users.length);
-
-  // Tạo tasks
-  const allTasks: TaskType[] = [];
-
-  // Morning shift
-  KITCHEN_TASKS.forEach((t) =>
-    allTasks.push({
-      ...t,
-      shift: "sang",
-      isCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-  );
-  SERVICE_TASKS.forEach((t) =>
-    allTasks.push({
-      ...t,
-      shift: "sang",
-      isCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-  );
-
-  // Evening shift (copy và đổi shift)
-  KITCHEN_TASKS.forEach((t) =>
-    allTasks.push({
-      ...t,
-      shift: "chieu",
-      isCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-  );
-  SERVICE_TASKS.forEach((t) =>
-    allTasks.push({
-      ...t,
-      shift: "chieu",
-      isCompleted: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    })
-  );
+  // Tasks
+  const allTasks = [];
+  KITCHEN_TASKS.forEach(t => allTasks.push({ ...t, role: 'kitchen' }));
+  SERVICE_TASKS.forEach(t => allTasks.push({ ...t, role: 'service' }));
 
   await Task.insertMany(allTasks);
-  console.log("Tasks seeded:", allTasks.length);
+  console.log("Tasks seeded");
+
+  // Rules
+  await Rule.create({
+    title: "NỘI QUY CHUNG PHOBBQ",
+    content: "1. Đi làm đúng giờ.\n2. Trang phục chỉnh tề, sạch sẽ.\n3. Không sử dụng điện thoại trong giờ làm việc (trừ việc công).\n4. Luôn mỉm cười với khách hàng.\n5. Báo cáo ngay cho quản lý nếu có sự cố.",
+    updatedBy: "Admin Tổng"
+  });
+  console.log("Rules seeded");
+
+  // Videos
+  await Video.insertMany([
+    { title: "Quy trình rửa tay chuẩn", youtubeUrl: "https://www.youtube.com/watch?v=3PMVJQUCm4Q", order: 1 },
+    { title: "Kỹ năng phục vụ bàn chuyên nghiệp", youtubeUrl: "https://www.youtube.com/watch?v=HG8b71jGkEk", order: 2 },
+    { title: "Cách ướp thịt nướng ngon", youtubeUrl: "https://www.youtube.com/watch?v=kR2tJd1J5E8", order: 3 }
+  ]);
+  console.log("Videos seeded");
 };
