@@ -11,9 +11,16 @@ const getHeaders = () => {
 };
 
 const handleResponse = async (res: Response) => {
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Lỗi kết nối');
-  return data;
+  const text = await res.text();
+  try {
+    const data = JSON.parse(text);
+    if (!res.ok) throw new Error(data.message || 'Lỗi kết nối');
+    return data;
+  } catch (e: any) {
+    // Nếu không parse được JSON, có thể là lỗi HTML từ server (404/500)
+    if (!res.ok) throw new Error(res.statusText || 'Lỗi Server (Phản hồi không hợp lệ)');
+    throw e;
+  }
 };
 
 // --- AUTH ---
