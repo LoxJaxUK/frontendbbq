@@ -17,8 +17,13 @@ const handleResponse = async (res: Response) => {
     if (!res.ok) throw new Error(data.message || 'Lỗi kết nối');
     return data;
   } catch (e: any) {
-    // Nếu không parse được JSON, có thể là lỗi HTML từ server (404/500)
-    if (!res.ok) throw new Error(res.statusText || 'Lỗi Server (Phản hồi không hợp lệ)');
+    // Log the raw text if parsing fails to see what server returned (e.g. HTML 404)
+    console.error("API Error - Raw Response:", text);
+    if (!res.ok) {
+        if (res.status === 404) throw new Error('Không tìm thấy API (404). Kiểm tra Backend đã chạy chưa?');
+        if (res.status === 504) throw new Error('Không kết nối được tới Backend (504).');
+        throw new Error(res.statusText || 'Lỗi Server (Phản hồi không hợp lệ)');
+    }
     throw e;
   }
 };
