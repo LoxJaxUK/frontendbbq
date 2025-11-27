@@ -18,7 +18,7 @@ const handleResponse = async (res: Response) => {
     return data;
   } catch (e: any) {
     // Log the raw text if parsing fails to see what server returned (e.g. HTML 404)
-    console.error("API Error - Raw Response:", text);
+    console.error("API Error  Raw Response: - api.ts:21", text);
     if (!res.ok) {
         if (res.status === 404) throw new Error('Không tìm thấy API (404). Kiểm tra Backend đã chạy chưa?');
         if (res.status === 504) throw new Error('Không kết nối được tới Backend (504).');
